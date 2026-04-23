@@ -88,16 +88,17 @@ export async function createSqlConfig(): Promise<{ config: sql.config, token: st
   }
 }
 
-const updateDataTool = new UpdateDataTool();
-const insertDataTool = new InsertDataTool();
+// HARD-RESTRICT TO READONLY_MODE by default for additional safety
+// const updateDataTool = new UpdateDataTool();
+// const insertDataTool = new InsertDataTool();
 const readDataTool = new ReadDataTool();
 const createTableTool = new CreateTableTool();
 const createIndexTool = new CreateIndexTool();
 const listTableTool = new ListTableTool();
-const dropTableTool = new DropTableTool();
+// const dropTableTool = new DropTableTool();
 const describeTableTool = new DescribeTableTool();
-const executeStoredProcedureTool = new ExecuteStoredProcedureTool();
-const alterTableTool = new AlterTableTool();
+// const executeStoredProcedureTool = new ExecuteStoredProcedureTool();
+// const alterTableTool = new AlterTableTool();
 
 const server = new Server(
   {
@@ -118,8 +119,10 @@ const isReadOnly = process.env.READONLY === "true";
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: isReadOnly
-    ? [listTableTool, readDataTool, describeTableTool, executeStoredProcedureTool] // todo: add searchDataTool to the list of tools available in readonly mode once implemented
-    : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, alterTableTool, dropTableTool, listTableTool, executeStoredProcedureTool], // add all new tools here
+    // ? [listTableTool, readDataTool, describeTableTool, executeStoredProcedureTool] // todo: add searchDataTool to the list of tools available in readonly mode once implemented
+    // : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, alterTableTool, dropTableTool, listTableTool, executeStoredProcedureTool], // add all new tools here
+    ? [listTableTool, readDataTool, describeTableTool] // todo: add searchDataTool to the list of tools available in readonly mode once implemented
+    : [readDataTool, describeTableTool, createTableTool, createIndexTool, listTableTool], // add all new tools here
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -127,30 +130,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     let result;
     switch (name) {
-      case insertDataTool.name:
-        result = await insertDataTool.run(args);
-        break;
+      // case insertDataTool.name:
+      //   result = await insertDataTool.run(args);
+      //   break;
       case readDataTool.name:
         result = await readDataTool.run(args);
         break;
-      case updateDataTool.name:
-        result = await updateDataTool.run(args);
-        break;
+      // case updateDataTool.name:
+      //   result = await updateDataTool.run(args);
+      //   break;
       case createTableTool.name:
         result = await createTableTool.run(args);
         break;
       case createIndexTool.name:
         result = await createIndexTool.run(args);
         break;
-      case alterTableTool.name:
-        result = await alterTableTool.run(args);
-        break;
+      // case alterTableTool.name:
+      //   result = await alterTableTool.run(args);
+      //   break;
       case listTableTool.name:
         result = await listTableTool.run(args);
         break;
-      case dropTableTool.name:
-        result = await dropTableTool.run(args);
-        break;
+      // case dropTableTool.name:
+      //   result = await dropTableTool.run(args);
+      //   break;
       case describeTableTool.name:
         if (!args || typeof args.tableName !== "string") {
           return {
@@ -160,15 +163,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         result = await describeTableTool.run(args as { tableName: string });
         break;
-      case executeStoredProcedureTool.name:
-        if (!args || typeof args.procedureName !== "string") {
-          return {
-            content: [{ type: "text", text: `Missing or invalid 'procedureName' argument for execute_stored_procedure tool.` }],
-            isError: true,
-          };
-        }
-        result = await executeStoredProcedureTool.run(args);
-        break;
+      // case executeStoredProcedureTool.name:
+      //   if (!args || typeof args.procedureName !== "string") {
+      //     return {
+      //       content: [{ type: "text", text: `Missing or invalid 'procedureName' argument for execute_stored_procedure tool.` }],
+      //       isError: true,
+      //     };
+      //   }
+      //   result = await executeStoredProcedureTool.run(args);
+      //   break;
       default:
         return {
           content: [{ type: "text", text: `Unknown tool: ${name}` }],
@@ -238,4 +241,4 @@ function wrapToolRun(tool: { run: (...args: any[]) => Promise<any> }) {
   };
 }
 
-[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, alterTableTool, dropTableTool, listTableTool, describeTableTool, executeStoredProcedureTool].forEach(wrapToolRun);
+[readDataTool, createTableTool, createIndexTool, listTableTool, describeTableTool].forEach(wrapToolRun);
