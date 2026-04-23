@@ -1,5 +1,7 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { validateTableSchema } from "../utils/schemaConfig.js";
+
 export class InsertDataTool implements Tool {
   [key: string]: any;
   name = "insert_data";
@@ -72,6 +74,16 @@ IMPORTANT RULES:
   async run(params: any) {
     try {
       const { tableName, data } = params;
+      
+      // Validate schema restrictions
+      const schemaValidation = validateTableSchema(tableName);
+      if (!schemaValidation.isValid) {
+        return {
+          success: false,
+          message: schemaValidation.error,
+        };
+      }
+      
       // Check if data is an array (multiple records) or single object
       const isMultipleRecords = Array.isArray(data);
       const records = isMultipleRecords ? data : [data];

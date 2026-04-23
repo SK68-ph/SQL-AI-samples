@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { isSchemaAllowed, getAllowedSchemasDisplay, getAllowedSchemas } from "../utils/schemaConfig.js";
 
 export class CreateIndexTool implements Tool {
   [key: string]: any;
@@ -32,7 +33,16 @@ export class CreateIndexTool implements Tool {
 
   async run(params: any) {
     try {
-      const { schemaName, tableName, indexName, columns, isUnique = false, isClustered = false } = params;
+      const { schemaName = 'dbo', tableName, indexName, columns, isUnique = false, isClustered = false } = params;
+
+      // Validate schema restrictions
+      const allowedSchemas = getAllowedSchemas();
+      if (allowedSchemas && !isSchemaAllowed(schemaName)) {
+        return {
+          success: false,
+          message: `Access denied: Schema '${schemaName}' is not in the allowed schemas list. Allowed schemas: ${getAllowedSchemasDisplay()}`,
+        };
+      }
 
       let indexType = isClustered ? "CLUSTERED" : "NONCLUSTERED";
       if (isUnique) {

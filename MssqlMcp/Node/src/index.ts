@@ -18,8 +18,10 @@ import { CreateTableTool } from "./tools/CreateTableTool.js";
 import { CreateIndexTool } from "./tools/CreateIndexTool.js";
 import { ListTableTool } from "./tools/ListTableTool.js";
 import { DropTableTool } from "./tools/DropTableTool.js";
+import { ExecuteStoredProcedureTool } from "./tools/ExecuteStoredProcedureTool.js";
 import { DefaultAzureCredential, InteractiveBrowserCredential } from "@azure/identity";
 import { DescribeTableTool } from "./tools/DescribeTableTool.js";
+import { AlterTableTool } from "./tools/AlterTableTool.js";
 
 // MSSQL Database connection configuration
 // const credential = new DefaultAzureCredential();
@@ -31,34 +33,59 @@ let globalTokenExpiresOn: Date | null = null;
 
 // Function to create SQL config with fresh access token, returns token and expiry
 export async function createSqlConfig(): Promise<{ config: sql.config, token: string, expiresOn: Date }> {
-  const credential = new InteractiveBrowserCredential({
-    redirectUri: 'http://localhost'
-    // disableAutomaticAuthentication : true
-  });
-  const accessToken = await credential.getToken('https://database.windows.net/.default');
-
   const trustServerCertificate = process.env.TRUST_SERVER_CERTIFICATE?.toLowerCase() === 'true';
+  const encrypt = process.env.ENCRYPT?.toLowerCase() !== 'false'; // Default to true unless explicitly set to false
   const connectionTimeout = process.env.CONNECTION_TIMEOUT ? parseInt(process.env.CONNECTION_TIMEOUT, 10) : 30;
 
-  return {
-    config: {
-      server: process.env.SERVER_NAME!,
-      database: process.env.DATABASE_NAME!,
-      options: {
-        encrypt: true,
-        trustServerCertificate
-      },
-      authentication: {
-        type: 'azure-active-directory-access-token',
+  // Check if USERNAME and PASSWORD are provided for SQL Server authentication
+  const username = process.env.USERNAME;
+  const password = process.env.PASSWORD;
+
+  if (username && password) {
+    // Use SQL Server authentication
+    return {
+      config: {
+        server: process.env.SERVER_NAME!,
+        database: process.env.DATABASE_NAME!,
+        user: username,
+        password: password,
         options: {
-          token: accessToken?.token!,
+          encrypt,
+          trustServerCertificate
         },
+        connectionTimeout: connectionTimeout * 1000, // convert seconds to milliseconds
       },
-      connectionTimeout: connectionTimeout * 1000, // convert seconds to milliseconds
-    },
-    token: accessToken?.token!,
-    expiresOn: accessToken?.expiresOnTimestamp ? new Date(accessToken.expiresOnTimestamp) : new Date(Date.now() + 30 * 60 * 1000)
-  };
+      token: 'sql-auth', // placeholder token for SQL auth
+      expiresOn: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
+    };
+  } else {
+    // Use Azure AD authentication
+    const credential = new InteractiveBrowserCredential({
+      redirectUri: 'http://localhost'
+      // disableAutomaticAuthentication : true
+    });
+    const accessToken = await credential.getToken('https://database.windows.net/.default');
+
+    return {
+      config: {
+        server: process.env.SERVER_NAME!,
+        database: process.env.DATABASE_NAME!,
+        options: {
+          encrypt,
+          trustServerCertificate
+        },
+        authentication: {
+          type: 'azure-active-directory-access-token',
+          options: {
+            token: accessToken?.token!,
+          },
+        },
+        connectionTimeout: connectionTimeout * 1000, // convert seconds to milliseconds
+      },
+      token: accessToken?.token!,
+      expiresOn: accessToken?.expiresOnTimestamp ? new Date(accessToken.expiresOnTimestamp) : new Date(Date.now() + 30 * 60 * 1000)
+    };
+  }
 }
 
 const updateDataTool = new UpdateDataTool();
@@ -69,6 +96,8 @@ const createIndexTool = new CreateIndexTool();
 const listTableTool = new ListTableTool();
 const dropTableTool = new DropTableTool();
 const describeTableTool = new DescribeTableTool();
+const executeStoredProcedureTool = new ExecuteStoredProcedureTool();
+const alterTableTool = new AlterTableTool();
 
 const server = new Server(
   {
@@ -89,8 +118,8 @@ const isReadOnly = process.env.READONLY === "true";
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: isReadOnly
-    ? [listTableTool, readDataTool, describeTableTool] // todo: add searchDataTool to the list of tools available in readonly mode once implemented
-    : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool], // add all new tools here
+    ? [listTableTool, readDataTool, describeTableTool, executeStoredProcedureTool] // todo: add searchDataTool to the list of tools available in readonly mode once implemented
+    : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, alterTableTool, dropTableTool, listTableTool, executeStoredProcedureTool], // add all new tools here
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -113,6 +142,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case createIndexTool.name:
         result = await createIndexTool.run(args);
         break;
+      case alterTableTool.name:
+        result = await alterTableTool.run(args);
+        break;
       case listTableTool.name:
         result = await listTableTool.run(args);
         break;
@@ -127,6 +159,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
         result = await describeTableTool.run(args as { tableName: string });
+        break;
+      case executeStoredProcedureTool.name:
+        if (!args || typeof args.procedureName !== "string") {
+          return {
+            content: [{ type: "text", text: `Missing or invalid 'procedureName' argument for execute_stored_procedure tool.` }],
+            isError: true,
+          };
+        }
+        result = await executeStoredProcedureTool.run(args);
         break;
       default:
         return {
@@ -197,4 +238,4 @@ function wrapToolRun(tool: { run: (...args: any[]) => Promise<any> }) {
   };
 }
 
-[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, describeTableTool].forEach(wrapToolRun);
+[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, alterTableTool, dropTableTool, listTableTool, describeTableTool, executeStoredProcedureTool].forEach(wrapToolRun);

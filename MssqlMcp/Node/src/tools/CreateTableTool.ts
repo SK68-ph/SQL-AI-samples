@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { validateTableSchema } from "../utils/schemaConfig.js";
 
 export class CreateTableTool implements Tool {
   [key: string]: any;
@@ -28,15 +29,27 @@ export class CreateTableTool implements Tool {
   async run(params: any) {
     try {
       const { tableName, columns } = params;
+      
+      // Validate schema restrictions
+      const schemaValidation = validateTableSchema(tableName);
+      if (!schemaValidation.isValid) {
+        return {
+          success: false,
+          message: schemaValidation.error,
+        };
+      }
+      
+      const { schema, table } = schemaValidation;
+      
       if (!Array.isArray(columns) || columns.length === 0) {
         throw new Error("'columns' must be a non-empty array");
       }
       const columnDefs = columns.map((col: any) => `[${col.name}] ${col.type}`).join(", ");
-      const query = `CREATE TABLE [${tableName}] (${columnDefs})`;
+      const query = `CREATE TABLE [${schema}].[${table}] (${columnDefs})`;
       await new sql.Request().query(query);
       return {
         success: true,
-        message: `Table '${tableName}' created successfully.`
+        message: `Table '${schema}.${table}' created successfully.`
       };
     } catch (error) {
       console.error("Error creating table:", error);

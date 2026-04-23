@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { validateQuerySchemas, getAllowedSchemasDisplay } from "../utils/schemaConfig.js";
 
 export class ReadDataTool implements Tool {
   [key: string]: any;
@@ -215,6 +216,17 @@ export class ReadDataTool implements Tool {
           success: false,
           message: `Security validation failed: ${validation.error}`,
           error: 'SECURITY_VALIDATION_FAILED'
+        };
+      }
+
+      // Validate schema restrictions
+      const schemaValidation = validateQuerySchemas(query);
+      if (!schemaValidation.isValid) {
+        console.warn(`Schema validation failed for query: ${query.substring(0, 100)}...`);
+        return {
+          success: false,
+          message: `Schema validation failed: ${schemaValidation.error}`,
+          error: 'SCHEMA_VALIDATION_FAILED'
         };
       }
 

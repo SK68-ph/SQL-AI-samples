@@ -1,5 +1,6 @@
 import sql from "mssql";
 import { Tool } from "@modelcontextprotocol/sdk/types.js";
+import { validateTableSchema } from "../utils/schemaConfig.js";
 
 export class UpdateDataTool implements Tool {
   [key: string]: any;
@@ -28,6 +29,15 @@ export class UpdateDataTool implements Tool {
     let query: string | undefined;
     try {
       const { tableName, updates, whereClause } = params;
+      
+      // Validate schema restrictions
+      const schemaValidation = validateTableSchema(tableName);
+      if (!schemaValidation.isValid) {
+        return {
+          success: false,
+          message: schemaValidation.error,
+        };
+      }
       
       // Basic validation: ensure whereClause is not empty
       if (!whereClause || whereClause.trim() === '') {

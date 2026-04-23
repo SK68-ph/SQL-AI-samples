@@ -143,6 +143,7 @@ This server leverages the Model Context Protocol (MCP), a versatile framework th
 - **SERVER_NAME**: Your MSSQL Database server name (e.g., `my-server.database.windows.net`)
 - **DATABASE_NAME**: Your database name
 - **READONLY**: Set to `"true"` to restrict to read-only operations, `"false"` for full access
+- **ALLOWED_SCHEMAS**: (Optional) Comma-separated list of schema names to restrict access to. If not set, all schemas are accessible. Example: `"dbo,sales,inventory"`
 - **Path**: Update the path in `args` to point to your actual project location.
 - **CONNECTION_TIMEOUT**: (Optional) Connection timeout in seconds. Defaults to `30` if not set.
 - **TRUST_SERVER_CERTIFICATE**: (Optional) Set to `"true"` to trust self-signed server certificates (useful for development or when connecting to servers with self-signed certs). Defaults to `"false"`.
@@ -167,5 +168,6 @@ Once configured, you can interact with your database using natural language:
 - The server requires a WHERE clause for read operations to prevent accidental full table scans
 - Update operations require explicit WHERE clauses for security
 - Set `READONLY: "true"` in environments if you only need read access
+- Use `ALLOWED_SCHEMAS` to restrict access to specific database schemas (e.g., `"dbo,sales"` limits all operations to those schemas only)
 
 You should now have successfully configured the MCP server for MSSQL Database with your preferred AI assistant. This setup allows you to seamlessly interact with MSSQL Database through natural language queries!
